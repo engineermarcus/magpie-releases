@@ -93,12 +93,12 @@ jobs:
           KS: ${{ secrets.KEYSTORE_BASE64 }}
         run: printf '%s' "$KS" | base64 -d > src/magpie-frontend/android-client/app/magpie.jks
 
-      # This repo is new, so run_number restarts at 1. Continue from the last build made in the old repo (3.69 = code 369)
+      # This repo is new, so run_number restarts at 1. Continue from the last build made in the old repo (3.70 = code 370)
       # so the version code keeps increasing and installed apps accept the update.
       - name: Compute version
         id: ver
         run: |
-          CODE=$((369 + ${{ github.run_number }}))
+          CODE=$((370 + ${{ github.run_number }}))
           echo "code=$CODE" >> $GITHUB_OUTPUT
           echo "name=$((CODE / 100)).$(printf '%02d' $((CODE % 100)))" >> $GITHUB_OUTPUT
 
