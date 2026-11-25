@@ -1,0 +1,59 @@
+# Compile-only check of a branch of the private repo (debug APK, no release). Manual: Actions -> Run workflow.
+name: Build check (no release)
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or commit of engineermarcus/magpie
+        default: main
+      debug:
+        description: Print the full Gradle log (PUBLIC log; may show source snippets)
+        type: boolean
+        default: true
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: engineermarcus/magpie
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.MAGPIE_READ_TOKEN }}
+          path: src
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: chmod +x src/magpie-frontend/android-client/gradlew
+      - name: Fetch nodejs-mobile
+        run: |
+          A=src/magpie-frontend/android-client/app
+          curl -fL -o /tmp/nm.zip https://github.com/digidem/nodejs-mobile/releases/download/v24.20.0-0/nodejs-mobile-android-24.20.0-0.zip
+          mkdir -p $A/libnode
+          unzip -q /tmp/nm.zip 'include/*' 'bin/arm64-v8a/*' 'bin/armeabi-v7a/*' -d $A/libnode
+      - name: Fetch TorrServer
+        run: |
+          B=src/magpie-frontend/android-client/app/libnode/bin
+          mkdir -p $B/arm64-v8a $B/armeabi-v7a
+          curl -fL -o $B/armeabi-v7a/libtorrserver.so https://github.com/YouROK/TorrServer/releases/download/MatriX.151/TorrServer-android-arm7
+          curl -fL -o $B/arm64-v8a/libtorrserver.so https://github.com/YouROK/TorrServer/releases/download/MatriX.151/TorrServer-android-arm64
+      - name: Bundle Node backend
+        working-directory: src/magpie-frontend/android-client/node-backend
+        run: |
+          npm ci --omit=dev --omit=optional >/dev/null 2>&1
+          mkdir -p ../app/src/main/assets
+          zip -qr ../app/src/main/assets/node-backend.zip .
+      - name: Compile debug APK
+        working-directory: src/magpie-frontend/android-client
+        env:
+          TMDB_TOKEN: ${{ secrets.TMDB_TOKEN }}
+          GH_CLIENT_ID: ${{ secrets.GH_CLIENT_ID }}
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 1.${{ github.run_number }}
+          DEBUG_LOG: ${{ inputs.debug }}
+        run: |
+          if [ "$DEBUG_LOG" = true ]; then ./gradlew assembleDebug --stacktrace
+          else ./gradlew assembleDebug -q >/dev/null 2>&1 || { echo "Gradle build failed. Re-run with debug=true."; exit 1; }; fi
