@@ -1,0 +1,15 @@
+name: diag-tunnel
+on: workflow_dispatch
+permissions: {}
+jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -fsSL -o cloudflared "https://github.com/cloudflare/cloudflared/releases/download/2026.10.2/cloudflared-linux-amd64"
+          echo "35fbdd2beb378436c7da377d7358cea8e33f9c94a6705d1d8036bf9b0d6d8005  cloudflared" | sha256sum -c -
+          chmod +x cloudflared; ./cloudflared --version
+          python3 -m http.server 3000 >/dev/null 2>&1 &
+          nohup ./cloudflared tunnel --no-autoupdate --url http://127.0.0.1:3000 > cf.log 2>&1 &
+          sleep 40
+          sed -E 's#https://[a-z0-9-]+\.trycloudflare\.com#https://<tunnel>#g' cf.log | tail -40
